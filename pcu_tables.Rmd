@@ -1,0 +1,284 @@
+---
+output: pdf_document
+indent: true
+fontsize: 10pt
+documentclass: article
+classoption: table
+geometry: paperheight=11.7in,paperwidth=8.28in,left=2cm,right=2cm,top=2.5cm,bottom=3cm
+header-includes:
+  - \usepackage{float}
+  - \usepackage{tabularx, booktabs}
+  - \usepackage{xcolor}
+  - \usepackage{hyperref}
+  - \usepackage{bookmark}
+  - \usepackage{tocloft}
+  - \renewcommand{\cftsecleader}{\cftdotfill{\cftdotsep}}
+---
+\begin{titlepage}
+
+  \begin{center}
+
+  \vspace*{\fill}
+
+  {\LARGE \textbf{Hierarchically Structured Tables using V-Party Dataset}\footnote{\emph{Disclaimer}: This document was first made public as a part of V--Party dataset release. However, the idea and its code implementation owes to me. Therefore, the code is published under my name after the consultations with the teammates. If you would like to use the contents of this document substantially, please, cite it as following: \medskip
+  
+  L\"{u}hrmann, Anna, Nils D\"{u}pont, Masaaki Higashijima, Yaman Berker Kavasoglu, Kyle L. Marquardt, Michael Bernhard, Holger Döring, Allen Hicken, Melis Laebens, Staffan I. Lindberg, Juraj Medzihorsky, Anja Neundorf, Ora John Reuter, Saskia Ruth--Lovell, Keith R. Weghorst, Nina Wiesehomeier, Joseph Wright, Nazifa Alizada, Paul Bederke, Lisa Gastaldi, Sandra Grahn, Garry Hindle, Nina Ilchenko, Johannes von Römer, Steven Wilson, Daniel Pemstein, and Brigitte Seim. 2020. ``V--Dem Party Coding Units v1''. Varieties of Democracy (V--Dem) Project.}\footnote{The contents of this document can differ from the one published on the V--Dem website.}}
+  
+  \begin{abstract}
+    This submission explores a way to render hierarchically structured multiple tables as one document in print-ready file format. The tables for this submission concern the representation of the parties and the type of available variables broken down by geographic regions and countries in V-Party dataset using R \emph{kable} and \emph{kableExtra} packages.
+  \end{abstract} \bigskip
+  
+  \vspace*{\fill}
+
+  \end{center}
+  
+\end{titlepage}
+
+\newpage
+
+\tableofcontents
+\bookmark[page=2,view={XYZ 0 \calc{\paperheight} null},level=3]{Contents}
+
+\newpage
+
+\section{Usage Notes}
+
+* \emph{\textbf{Political party}} is defined as an organization that nominates candidates for public office. The term includes a longstanding coalition such as the CDU/CSU in Germany if that coalition functions in most respects like a single party. Sometimes, the identity of a party is obscured by name changes. However, if the party changes names but retains key personnel and is still run by and for the same constituencies then it should be considered the same organization. This definition is provided as is in Appendix A *Glossary* of [V-Party Codebook](https://www.v-dem.net/en/data/data/v-party-dataset/).
+
+* For references and data, see [V-Party data download web page on V-Dem Project's website](https://www.v-dem.net/en/data/data/v-party-dataset/).
+
+* For each country present in V-Party dataset, there is a table with the parties that were elected to national legislative body at least once starting 1900 or the year when the country was declared (For more information on how V--Dem Project defines countries, please, see [*Country Coding Units*](https://www.v-dem.net/media/filer_public/66/b4/66b42d26-1792-487e-a800-d8f8fa203429/countryunit.pdf) document). Along with country name as defined in V-Dem annual dataset, the country's ID from V-Dem dataset is also provided in round brackets.
+
+* Each table's header contains the name of party (variable *v2paenname*), its abbreviation (*v2pashname*), and party ID (*v2paid*) in the dataset. In addition to these variables, for each country the header includes election years for which the data is present.
+
+* For parties that were elected there are either A or C-class variables, which is denoted correspondingly by capital letter "A" (factual data, such as election results) or "C" (survey data collected from experts). For such party-election years the dataset generally has observations for at least A-class variable. Starting with 1970 (and in the case of Cuba - 1965), the dataset contains expert--coded data.
+
+* Columns *v2paenname*, *v2pashname*, and *v2paid* are clickable. If you click on any of the entries you will be landed on the party's web page on the *Party Facts* project website where you can find more information about the corresponding party.
+
+* For convenience, the countries are organised in accordance with [the United Nations Statistical Division geographic regions](https://unstats.un.org/unsd/methodology/m49).
+
+\newpage
+
+```{r data_preparation,messages=FALSE, include=FALSE}
+# it might be needed to run tinytex::install_tinytex() in order to compile this document
+
+# don't show NA values in .pdf
+options(knitr.kable.NA = '')
+
+suppressMessages(library(dplyr))
+suppressMessages(library(data.table))
+suppressMessages(library(kableExtra))
+library(whisker)
+
+# Load the data
+DIR <- "data"
+PATH <- list.files(DIR, full.names = TRUE, pattern = 'V1[.]rds$')
+stopifnot(length(PATH) == 1)
+
+ref_table <- file.path(DIR, "var_classes.rds") %>%
+  readRDS()
+
+df <- readRDS(PATH)
+
+# after a few test runs, it looks like we have a few countries with too many parties and few elections + number of cutoff rows. it results in tables being too large for the page, so we need to split them eventually
+cutoffs <- c(30, 36, 18, 23, 36, 23, 60, 19) %>%
+  setNames(c("Benin", "Peru", "Bosnia and Herzegovina", "Croatia", "Latvia", "Montenegro", "Serbia", "Slovakia"))
+
+#
+# Functions
+# --------------------------------------------------------------------------
+kable_code <- function(df) {
+  url <- df$pf_url
+    df <- df[, !"pf_url"] # remove URL from table, we don't want it to show up
+
+    kable(df, format = "latex", booktabs = TRUE,
+          align = 'c') %>%
+      column_spec(1, width = "0.5cm", latex_valign = "m") %>% 
+      column_spec(2, bold = TRUE, width = "3cm", latex_valign = "m", link = url) %>%
+      column_spec(3:4, width = "1.5cm", latex_valign = "m", link = url) %>%
+      column_spec(5:ncol(df), width = "1cm", latex_valign = "m") %>% 
+      kable_styling(latex_options = "scale_down") %>%
+      kable_styling(latex_options = "striped", stripe_color = "#D9DDE0")
+    # on Linux, the line above for some reason might not work, replace it with this one:
+    # row_spec(., row = {seq(1, nrow(df), by = 2)}, background = "#D9DDE0")
+}
+
+#
+# Define which rows have data only for A or C vars
+# --------------------------------------------------------------------------
+ac_vars <- names(df)[names(df) %in% ref_table$name[ref_table$is_id == FALSE]] %>%
+  grep("v2pa", x = ., value = TRUE) # select variables that are not id and not from external sources
+
+# assign variable class to relevant variable
+class_df <- lapply(ac_vars, function(v) {
+  vdf <- df[, c("country_name", "v2paid", "historical_date", v)]
+  vdf[[v]][which(!is.na(vdf[[v]]))] <- ref_table$class[ref_table$name == v]
+  return(vdf)
+  }) %>%
+  Reduce(function(x, y) {full_join(x, y, by = c("country_name", "v2paid", "historical_date"))}, x = .)
+
+stopifnot(nrow(df) == nrow(class_df))
+
+# we need to have one value per each party-election date
+ac_data <- apply(class_df, 1, function(x) {
+  x[4:length(x)] %>%  
+    na.omit() %>%
+    unique() %>%
+    paste0(collapse = "/")
+  })
+
+stopifnot(any(!is.na(ac_data)),
+          length(ac_data) == nrow(df))
+
+#
+# Define regions
+# --------------------------------------------------------------------------
+dates_df <- df %>% 
+  select(v2paenname, v2pashname, v2paid, country_name, country_id,
+         historical_date, e_regiongeo, pf_url) %>% 
+  mutate(gen_region = case_when(
+    e_regiongeo %in% c(1, 2, 3, 4) ~ 'Europe',
+    e_regiongeo %in% c(5, 6, 7, 8, 9) ~ 'Africa',
+    e_regiongeo %in% c(10, 11, 12, 13, 14) ~ 'Asia',
+    e_regiongeo == 15 ~ 'Oceania',
+    e_regiongeo %in% c(16, 17, 18) ~ 'The Americas',
+    e_regiongeo == 19 ~ 'The Carribean'
+  ),
+  gen_subregion = case_when(
+    e_regiongeo == 1 ~ 'Western Europe',
+    e_regiongeo == 2 ~ 'Northern Europe',
+    e_regiongeo == 3 ~ 'Southern Europe',
+    e_regiongeo == 4 ~ 'Eastern Europe',
+    e_regiongeo == 5 ~ 'Northern Africa',
+    e_regiongeo == 6 ~ 'Western Africa',
+    e_regiongeo == 7 ~ 'Middle Africa',
+    e_regiongeo == 8 ~ 'Eastern Africa',
+    e_regiongeo == 9 ~ 'Southern Africa',
+    e_regiongeo == 10 ~ 'Western Asia',
+    e_regiongeo == 11 ~ 'Central Asia',
+    e_regiongeo == 12 ~ 'Eastern Asia',
+    e_regiongeo == 13 ~ 'South--Eastern Asia',
+    e_regiongeo == 14 ~ 'Southern Asia',
+    e_regiongeo == 15 ~ 'Oceania',
+    e_regiongeo == 16 ~ 'Northern America',
+    e_regiongeo == 17 ~ 'Central America',
+    e_regiongeo == 18 ~ 'South America',
+    e_regiongeo == 19 ~ 'The Carribean'
+  )) %>% bind_cols(as.data.frame(ac_data)) # add variable type asa column
+
+
+# gen df for url
+df_url <- select(df, v2paid, v2paenname, pf_url) %>% distinct() 
+
+# generate placeholders for \subsection and \section
+subsection_df <- group_by(dates_df, gen_region, e_regiongeo) %>%
+  arrange(e_regiongeo, country_name) %>% 
+  slice(1L)
+
+# no subsections for Oceania and the Carribean
+subsection_countries <- filter(subsection_df, !e_regiongeo %in% c(15, 19)) %>% 
+  pull(country_name)
+
+# now, make the list of countries with \section placeholders
+section_countries <- group_by(subsection_df, gen_region) %>% 
+  slice(1L) %>% 
+  pull(country_name)
+
+rsplit <- select(dates_df, gen_region, e_regiongeo, gen_subregion, country_name, country_id) %>% 
+  mutate(put_section = ifelse(country_name %in% section_countries,TRUE, FALSE),
+                put_subsection = ifelse(country_name %in% subsection_countries, TRUE, FALSE))  %>%
+  # sorting countries correctly is EXTREMELY important
+  arrange(gen_region, e_regiongeo, country_name) %>% 
+  # ensure that there're no duplicates
+  distinct() %>%
+  # splitting twice would save us from cleaning empty lists
+  # we would like to get corresponding list names
+  split(., .$gen_region) %>% 
+  lapply(function(df) {split(df, df$e_regiongeo)}) %>% 
+  unlist(recursive = FALSE)
+
+entry_template <- "
+{{#put_section}}\\section{ {{gen_region}} } {{/put_section}}
+{{#put_subsection}} \\subsection{ {{gen_subregion}} } {{/put_subsection}}
+\\subsubsection{ {{country_name}} }
+"
+
+# prepare the table part
+df_prep <- select(dates_df, v2paenname, pf_url, v2pashname, v2paid, gen_region, e_regiongeo, country_name, historical_date, ac_data) %>% 
+  # first, split by section
+  split(., .$gen_region) %>% 
+  # next, split by subsection
+  lapply(function(x) split(x, x$e_regiongeo)) %>% 
+  unlist(recursive = FALSE) %>% 
+  # now, split section-subsection by country
+  lapply(function(df) split(df, df$country_name)) %>%
+  unlist(recursive = FALSE) %>%
+  # make data.table from each country df
+  lapply(function(df) {
+    x <- select(df, -gen_region, -e_regiongeo)
+    x <- as.data.table(x)
+  })
+
+# fit the data to the template
+kable_list <- lapply(df_prep, function(dt){
+  # depending on the country we either split table or not
+  cn <- unique(dt$country_name)
+  stopifnot(length(cn) == 1)
+  dt <- dt[, !"country_name"]
+
+  df <- dcast(dt, v2paenname + pf_url + v2pashname + v2paid ~ historical_date, value.var = "ac_data") %>% 
+      mutate(N = seq_along(v2paenname)) %>% 
+      select(N, everything())
+
+    if (cn %in% names(cutoffs)) {
+      out_kable <- split(df, df$N > cutoffs[names(cutoffs) == cn]) %>%
+        lapply(function(sub_df) {kable_code(sub_df)}) %>%
+        unlist() %>%
+        paste0(collapse = "\\textit{This table continues on the next page.}\\newpage")
+    } else if (cn == "United States of America") {
+      # there're too many elections in the USA and too little parties in the national legislature, so we would like to actually split the columns, not the rows of the table
+      id_cols <- names(df)[is.na(as.Date(names(df),"%Y-%m-%d"))]
+      spl_cols <- as.Date(names(df)[!names(df) %in% id_cols], "%Y-%m-%d") >= as.Date("1970-11-03", "%Y-%m-%d")
+      id_df <- df[, ..id_cols]
+      data_df <- df[, !..id_cols]
+      out_kable <- list(cbind(id_df, data_df[, !..spl_cols]),
+        cbind(id_df, data_df[, ..spl_cols])) %>%
+        sapply(function(df) {kable_code(df)}) %>%
+        paste0(collapse = " \\textit{This table continues below.} ")
+      } else {
+      out_kable <- kable_code(df)
+    }
+    return(out_kable)
+})
+
+kable_list <- kable_list[sort.list(names(kable_list))]
+
+# fill the template with its content
+text_template <- lapply(rsplit, function(df) {
+  csplit <- split(df, df$country_name)
+  csplit <- lapply(csplit, function(df) {
+    df %<>% mutate(country_name = paste0(country_name, " (",
+                                         country_id, ")")) %>% 
+      select(-country_id)
+  })
+  lapply(csplit, function(x) {
+    whisker.render(entry_template, x)
+  })
+}) %>% unlist(recursive = FALSE)
+
+text_template <- text_template[sort.list(names(text_template))]
+
+# merge both table and text
+stopifnot(identical(names(kable_list), names(text_template)))
+stopifnot(length(kable_list) == length(text_template))
+
+results <- lapply(seq_along(kable_list), function(count) {
+  paste0(text_template[[count]], kable_list[[count]], "\\newpage", collapse = "\n")
+}) %>% unlist()
+
+```
+
+```{r render_everything,results="asis", echo=FALSE}
+# this is magical
+cat(results)
+```
