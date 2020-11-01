@@ -25,7 +25,7 @@ header-includes:
   L\"{u}hrmann, Anna, Nils D\"{u}pont, Masaaki Higashijima, Yaman Berker Kavasoglu, Kyle L. Marquardt, Michael Bernhard, Holger Döring, Allen Hicken, Melis Laebens, Staffan I. Lindberg, Juraj Medzihorsky, Anja Neundorf, Ora John Reuter, Saskia Ruth--Lovell, Keith R. Weghorst, Nina Wiesehomeier, Joseph Wright, Nazifa Alizada, Paul Bederke, Lisa Gastaldi, Sandra Grahn, Garry Hindle, Nina Ilchenko, Johannes von Römer, Steven Wilson, Daniel Pemstein, and Brigitte Seim. 2020. ``V--Dem Party Coding Units v1''. Varieties of Democracy (V--Dem) Project.}\footnote{The contents of this document can differ from the one published on the V--Dem website.}}
   
   \begin{abstract}
-    This submission explores a way to render hierarchically structured multiple tables as one document in print-ready file format. The tables for this submission concern the representation of the parties and the type of available variables broken down by geographic regions and countries in V-Party dataset using R \emph{kable} and \emph{kableExtra} packages.
+    This submission explores a way to render hierarchically structured multiple tables as one document in print-ready file format. The tables for this submission concern the representation of the parties and the type of available variables broken down by geographic regions and countries in V-Party dataset using R \emph{knitr} and \emph{kableExtra} packages.
   \end{abstract} \bigskip
   
   \vspace*{\fill}
